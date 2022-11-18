@@ -380,16 +380,17 @@ struct BaseWorker {
   BaseWorker (napi_env env,
               Database* database,
               napi_deferred deferred,
-              napi_value promise,
               const char* resourceName)
     : database_(database), errMsg_(NULL), deferred_(deferred) {
-    // TODO (v2): is this required? What happens to deferred after the JS promise is GC-ed?
-    NAPI_STATUS_THROWS_VOID(napi_create_reference(env, promise, 1, &promiseRef_));
+    // Note: napi_deferred is a strong reference to the JS promise, so there's no need to
+    // create a reference ourselves. See `v8_deferred = new v8::Persistent<v8::Value>()` in:
+    // https://github.com/nodejs/node/commit/7efb8f7619100973877c660d0ee527ea3d92de8d
+
     napi_value asyncResourceName;
     NAPI_STATUS_THROWS_VOID(napi_create_string_utf8(env, resourceName,
                                                NAPI_AUTO_LENGTH,
                                                &asyncResourceName));
-    NAPI_STATUS_THROWS_VOID(napi_create_async_work(env, promise,
+    NAPI_STATUS_THROWS_VOID(napi_create_async_work(env, NULL,
                                               asyncResourceName,
                                               BaseWorker::Execute,
                                               BaseWorker::Complete,
@@ -474,9 +475,7 @@ struct BaseWorker {
   }
 
   virtual void DoFinally (napi_env env) {
-    napi_delete_reference(env, promiseRef_);
     napi_delete_async_work(env, asyncWork_);
-
     deferred_ = NULL;
     delete this;
   }
@@ -488,7 +487,6 @@ struct BaseWorker {
   Database* database_;
 
 private:
-  napi_ref promiseRef_;
   napi_deferred deferred_;
   napi_async_work asyncWork_;
   leveldb::Status status_;
@@ -681,8 +679,8 @@ leveldb::Status threadsafe_close(Database &db_instance) {
  * Base worker class for doing async work that defers closing the database.
  */
 struct PriorityWorker : public BaseWorker {
-  PriorityWorker (napi_env env, Database* database, napi_deferred deferred, napi_value promise, const char* resourceName)
-    : BaseWorker(env, database, deferred, promise, resourceName) {
+  PriorityWorker (napi_env env, Database* database, napi_deferred deferred, const char* resourceName)
+    : BaseWorker(env, database, deferred, resourceName) {
       database_->IncrementPriorityWork(env);
   }
 
@@ -1048,7 +1046,6 @@ struct OpenWorker final : public BaseWorker {
   OpenWorker (napi_env env,
               Database* database,
               napi_deferred deferred,
-              napi_value promise,
               const std::string& location,
               const bool createIfMissing,
               const bool errorIfExists,
@@ -1059,7 +1056,7 @@ struct OpenWorker final : public BaseWorker {
               const uint32_t maxOpenFiles,
               const uint32_t blockRestartInterval,
               const uint32_t maxFileSize)
-    : BaseWorker(env, database, deferred, promise, "classic_level.db.open"),
+    : BaseWorker(env, database, deferred, "classic_level.db.open"),
       location_(location),
       multithreading_(multithreading) {
     options_.block_cache = database->blockCache_;
@@ -1114,7 +1111,7 @@ NAPI_METHOD(db_open) {
   NAPI_PROMISE();
 
   OpenWorker* worker = new OpenWorker(
-    env, database, deferred, promise, location,
+    env, database, deferred, location,
     createIfMissing, errorIfExists,
     compression, multithreading,
     writeBufferSize, blockSize,
@@ -1132,11 +1129,8 @@ NAPI_METHOD(db_open) {
  * Worker class for closing a database
  */
 struct CloseWorker final : public BaseWorker {
-  CloseWorker (napi_env env,
-               Database* database,
-               napi_deferred deferred,
-               napi_value promise)
-    : BaseWorker(env, database, deferred, promise, "classic_level.db.close") {}
+  CloseWorker (napi_env env, Database* database, napi_deferred deferred)
+    : BaseWorker(env, database, deferred, "classic_level.db.close") {}
 
   ~CloseWorker () {}
 
@@ -1157,7 +1151,7 @@ NAPI_METHOD(db_close) {
   NAPI_DB_CONTEXT();
   NAPI_PROMISE();
 
-  CloseWorker* worker = new CloseWorker(env, database, deferred, promise);
+  CloseWorker* worker = new CloseWorker(env, database, deferred);
 
   if (!database->HasPriorityWork()) {
     worker->Queue(env);
@@ -1199,11 +1193,10 @@ struct PutWorker final : public PriorityWorker {
   PutWorker (napi_env env,
              Database* database,
              napi_deferred deferred,
-             napi_value promise,
              leveldb::Slice key,
              leveldb::Slice value,
              bool sync)
-    : PriorityWorker(env, database, deferred, promise, "classic_level.db.put"),
+    : PriorityWorker(env, database, deferred, "classic_level.db.put"),
       key_(key), value_(value) {
     options_.sync = sync;
   }
@@ -1234,7 +1227,7 @@ NAPI_METHOD(db_put) {
   leveldb::Slice value = ToSlice(env, argv[2]);
   bool sync = BooleanProperty(env, argv[3], "sync", false);
 
-  PutWorker* worker = new PutWorker(env, database, deferred, promise, key, value, sync);
+  PutWorker* worker = new PutWorker(env, database, deferred, key, value, sync);
   worker->Queue(env);
 
   return promise;
@@ -1247,11 +1240,10 @@ struct GetWorker final : public PriorityWorker {
   GetWorker (napi_env env,
              Database* database,
              napi_deferred deferred,
-             napi_value promise,
              leveldb::Slice key,
              const Encoding encoding,
              const bool fillCache)
-    : PriorityWorker(env, database, deferred, promise, "classic_level.db.get"),
+    : PriorityWorker(env, database, deferred, "classic_level.db.get"),
       key_(key),
       encoding_(encoding) {
     options_.fill_cache = fillCache;
@@ -1292,7 +1284,7 @@ NAPI_METHOD(db_get) {
   const bool fillCache = BooleanProperty(env, options, "fillCache", true);
 
   GetWorker* worker = new GetWorker(
-    env, database, deferred, promise, key, encoding, fillCache
+    env, database, deferred, key, encoding, fillCache
   );
 
   worker->Queue(env);
@@ -1307,10 +1299,9 @@ struct GetManyWorker final : public PriorityWorker {
                  Database* database,
                  std::vector<std::string> keys,
                  napi_deferred deferred,
-                 napi_value promise,
                  const Encoding valueEncoding,
                  const bool fillCache)
-    : PriorityWorker(env, database, deferred, promise, "classic_level.get.many"),
+    : PriorityWorker(env, database, deferred, "classic_level.get.many"),
       keys_(std::move(keys)), valueEncoding_(valueEncoding) {
       options_.fill_cache = fillCache;
       options_.snapshot = database->NewSnapshot();
@@ -1378,7 +1369,7 @@ NAPI_METHOD(db_get_many) {
   const bool fillCache = BooleanProperty(env, options, "fillCache", true);
 
   GetManyWorker* worker = new GetManyWorker(
-    env, database, keys, deferred, promise, valueEncoding, fillCache
+    env, database, keys, deferred, valueEncoding, fillCache
   );
 
   worker->Queue(env);
@@ -1392,10 +1383,9 @@ struct DelWorker final : public PriorityWorker {
   DelWorker (napi_env env,
              Database* database,
              napi_deferred deferred,
-             napi_value promise,
              leveldb::Slice key,
              bool sync)
-    : PriorityWorker(env, database, deferred, promise, "classic_level.db.del"),
+    : PriorityWorker(env, database, deferred, "classic_level.db.del"),
       key_(key) {
     options_.sync = sync;
   }
@@ -1423,7 +1413,7 @@ NAPI_METHOD(db_del) {
   leveldb::Slice key = ToSlice(env, argv[1]);
   bool sync = BooleanProperty(env, argv[2], "sync", false);
 
-  DelWorker* worker = new DelWorker(env, database, deferred, promise, key, sync);
+  DelWorker* worker = new DelWorker(env, database, deferred, key, sync);
   worker->Queue(env);
 
   return promise;
@@ -1436,14 +1426,13 @@ struct ClearWorker final : public PriorityWorker {
   ClearWorker (napi_env env,
                Database* database,
                napi_deferred deferred,
-               napi_value promise,
                const bool reverse,
                const int limit,
                std::string* lt,
                std::string* lte,
                std::string* gt,
                std::string* gte)
-    : PriorityWorker(env, database, deferred, promise, "classic_level.db.clear") {
+    : PriorityWorker(env, database, deferred, "classic_level.db.clear") {
     iterator_ = new BaseIterator(database, reverse, lt, lte, gt, gte, limit, false);
     writeOptions_ = new leveldb::WriteOptions();
     writeOptions_->sync = false;
@@ -1509,7 +1498,7 @@ NAPI_METHOD(db_clear) {
   std::string* gte = RangeOption(env, options, "gte");
 
   ClearWorker* worker = new ClearWorker(
-    env, database, deferred, promise, reverse, limit, lt, lte, gt, gte
+    env, database, deferred, reverse, limit, lt, lte, gt, gte
   );
 
   worker->Queue(env);
@@ -1523,10 +1512,9 @@ struct ApproximateSizeWorker final : public PriorityWorker {
   ApproximateSizeWorker (napi_env env,
                          Database* database,
                          napi_deferred deferred,
-                         napi_value promise,
                          leveldb::Slice start,
                          leveldb::Slice end)
-    : PriorityWorker(env, database, deferred, promise, "classic_level.db.approximate_size"),
+    : PriorityWorker(env, database, deferred, "classic_level.db.approximate_size"),
       start_(start), end_(end) {}
 
   ~ApproximateSizeWorker () {
@@ -1562,7 +1550,7 @@ NAPI_METHOD(db_approximate_size) {
   leveldb::Slice end = ToSlice(env, argv[2]);
 
   ApproximateSizeWorker* worker = new ApproximateSizeWorker(
-    env, database, deferred, promise, start, end
+    env, database, deferred, start, end
   );
 
   worker->Queue(env);
@@ -1576,10 +1564,9 @@ struct CompactRangeWorker final : public PriorityWorker {
   CompactRangeWorker (napi_env env,
                       Database* database,
                       napi_deferred deferred,
-                      napi_value promise,
                       leveldb::Slice start,
                       leveldb::Slice end)
-    : PriorityWorker(env, database, deferred, promise, "classic_level.db.compact_range"),
+    : PriorityWorker(env, database, deferred, "classic_level.db.compact_range"),
       start_(start), end_(end) {}
 
   ~CompactRangeWorker () {
@@ -1607,7 +1594,7 @@ NAPI_METHOD(db_compact_range) {
   leveldb::Slice end = ToSlice(env, argv[2]);
 
   CompactRangeWorker* worker = new CompactRangeWorker(
-    env, database, deferred, promise, start, end
+    env, database, deferred, start, end
   );
 
   worker->Queue(env);
@@ -1638,11 +1625,8 @@ NAPI_METHOD(db_get_property) {
  * Worker class for destroying a database.
  */
 struct DestroyWorker final : public BaseWorker {
-  DestroyWorker (napi_env env,
-                 const std::string& location,
-                 napi_deferred deferred,
-                 napi_value promise)
-    : BaseWorker(env, NULL, deferred, promise, "classic_level.destroy_db"),
+  DestroyWorker (napi_env env, const std::string& location, napi_deferred deferred)
+    : BaseWorker(env, NULL, deferred, "classic_level.destroy_db"),
       location_(location) {}
 
   ~DestroyWorker () {}
@@ -1663,7 +1647,7 @@ NAPI_METHOD(destroy_db) {
   NAPI_ARGV_UTF8_NEW(location, 0);
   NAPI_PROMISE();
 
-  DestroyWorker* worker = new DestroyWorker(env, location, deferred, promise);
+  DestroyWorker* worker = new DestroyWorker(env, location, deferred);
   worker->Queue(env);
 
   delete [] location;
@@ -1674,11 +1658,8 @@ NAPI_METHOD(destroy_db) {
  * Worker class for repairing a database.
  */
 struct RepairWorker final : public BaseWorker {
-  RepairWorker (napi_env env,
-                const std::string& location,
-                napi_deferred deferred,
-                napi_value promise)
-    : BaseWorker(env, NULL, deferred, promise, "classic_level.repair_db"),
+  RepairWorker (napi_env env, const std::string& location, napi_deferred deferred)
+    : BaseWorker(env, NULL, deferred, "classic_level.repair_db"),
       location_(location) {}
 
   ~RepairWorker () {}
@@ -1699,7 +1680,7 @@ NAPI_METHOD(repair_db) {
   NAPI_ARGV_UTF8_NEW(location, 0);
   NAPI_PROMISE();
 
-  RepairWorker* worker = new RepairWorker(env, location, deferred, promise);
+  RepairWorker* worker = new RepairWorker(env, location, deferred);
   worker->Queue(env);
 
   delete [] location;
@@ -1779,11 +1760,8 @@ NAPI_METHOD(iterator_seek) {
  * Worker class for closing an iterator
  */
 struct CloseIteratorWorker final : public BaseWorker {
-  CloseIteratorWorker (napi_env env,
-             Iterator* iterator,
-             napi_deferred deferred,
-             napi_value promise)
-    : BaseWorker(env, iterator->database_, deferred, promise, "classic_level.iterator.close"),
+  CloseIteratorWorker (napi_env env, Iterator* iterator, napi_deferred deferred)
+    : BaseWorker(env, iterator->database_, deferred, "classic_level.iterator.close"),
       iterator_(iterator) {}
 
   ~CloseIteratorWorker () {}
@@ -1810,7 +1788,7 @@ NAPI_METHOD(iterator_close) {
   NAPI_PROMISE();
 
   if (!iterator->isClosing_ && !iterator->hasClosed_) {
-    CloseIteratorWorker* worker = new CloseIteratorWorker(env, iterator, deferred, promise);
+    CloseIteratorWorker* worker = new CloseIteratorWorker(env, iterator, deferred);
     iterator->isClosing_ = true;
 
     if (iterator->nexting_) {
@@ -1831,13 +1809,8 @@ NAPI_METHOD(iterator_close) {
  * Worker class for nexting an iterator.
  */
 struct NextWorker final : public BaseWorker {
-  NextWorker (napi_env env,
-              Iterator* iterator,
-              uint32_t size,
-              napi_deferred deferred,
-              napi_value promise)
-    : BaseWorker(env, iterator->database_, deferred, promise,
-                 "classic_level.iterator.next"),
+  NextWorker (napi_env env, Iterator* iterator, uint32_t size, napi_deferred deferred)
+    : BaseWorker(env, iterator->database_, deferred, "classic_level.iterator.next"),
       iterator_(iterator), size_(size), ok_() {}
 
   ~NextWorker () {}
@@ -1911,7 +1884,7 @@ NAPI_METHOD(iterator_nextv) {
     napi_create_array_with_length(env, 0, &empty);
     napi_resolve_deferred(env, deferred, empty);
   } else {
-    NextWorker* worker = new NextWorker(env, iterator, size, deferred, promise);
+    NextWorker* worker = new NextWorker(env, iterator, size, deferred);
     iterator->nexting_ = true;
     worker->Queue(env);
   }
@@ -1926,11 +1899,10 @@ struct BatchWorker final : public PriorityWorker {
   BatchWorker (napi_env env,
                Database* database,
                napi_deferred deferred,
-               napi_value promise,
                leveldb::WriteBatch* batch,
                const bool sync,
                const bool hasData)
-    : PriorityWorker(env, database, deferred, promise, "classic_level.batch.do"),
+    : PriorityWorker(env, database, deferred, "classic_level.batch.do"),
       batch_(batch), hasData_(hasData) {
     options_.sync = sync;
   }
@@ -2000,7 +1972,7 @@ NAPI_METHOD(batch_do) {
   }
 
   BatchWorker* worker = new BatchWorker(
-    env, database, deferred, promise, batch, sync, hasData
+    env, database, deferred, batch, sync, hasData
   );
 
   worker->Queue(env);
@@ -2121,9 +2093,8 @@ struct BatchWriteWorker final : public PriorityWorker {
                     napi_value context,
                     Batch* batch,
                     napi_deferred deferred,
-                    napi_value promise,
                     const bool sync)
-    : PriorityWorker(env, batch->database_, deferred, promise, "classic_level.batch.write"),
+    : PriorityWorker(env, batch->database_, deferred, "classic_level.batch.write"),
       batch_(batch),
       sync_(sync) {
         // Prevent GC of batch object before we execute
@@ -2161,7 +2132,7 @@ NAPI_METHOD(batch_write) {
   const bool sync = BooleanProperty(env, options, "sync", false);
 
   BatchWriteWorker* worker = new BatchWriteWorker(
-    env, argv[0], batch, deferred, promise, sync
+    env, argv[0], batch, deferred, sync
   );
 
   worker->Queue(env);
