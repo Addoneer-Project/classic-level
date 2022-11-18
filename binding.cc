@@ -184,6 +184,20 @@ static bool BooleanProperty (napi_env env, napi_value obj, const char* key,
   return DEFAULT;
 }
 
+/**
+ * Returns a boolean value.
+ * Returns 'DEFAULT' if the JS value is undefined or otherwise not a boolean.
+ */
+static bool BooleanValue (napi_env env, napi_value value, bool DEFAULT) {
+  bool result;
+
+  if (napi_get_value_bool(env, value, &result) == napi_ok) {
+    return result;
+  } else {
+    return DEFAULT;
+  }
+}
+
 enum Encoding { buffer, utf8, view };
 
 /**
@@ -201,6 +215,19 @@ static Encoding GetEncoding (napi_env env, napi_value options, const char* optio
       case 'b': return Encoding::buffer;
       case 'v': return Encoding::view;
     }
+  }
+
+  return Encoding::utf8;
+}
+
+/**
+ * Returns internal Encoding enum by its equivalent numeric value.
+ */
+static Encoding GetEncoding (napi_env env, napi_value value) {
+  int32_t result;
+
+  if (napi_get_value_int32(env, value, &result) == napi_ok) {
+    return static_cast<Encoding>(result);
   }
 
   return Encoding::utf8;
@@ -1223,6 +1250,7 @@ struct GetWorker final : public PriorityWorker {
       key_(key),
       encoding_(encoding) {
     options_.fill_cache = fillCache;
+    options_.snapshot = database->NewSnapshot();
   }
 
   ~GetWorker () {
@@ -1231,6 +1259,7 @@ struct GetWorker final : public PriorityWorker {
 
   void DoExecute () override {
     SetStatus(database_->Get(options_, key_, value_));
+    database_->ReleaseSnapshot(options_.snapshot);
   }
 
   void HandleOKCallback (napi_env env, napi_deferred deferred) override {
@@ -1250,14 +1279,13 @@ private:
  * Gets a value from a database.
  */
 NAPI_METHOD(db_get) {
-  NAPI_ARGV(3);
+  NAPI_ARGV(4);
   NAPI_DB_CONTEXT();
   NAPI_PROMISE();
 
   leveldb::Slice key = ToSlice(env, argv[1]);
-  napi_value options = argv[2];
-  const Encoding encoding = GetEncoding(env, options, "valueEncoding");
-  const bool fillCache = BooleanProperty(env, options, "fillCache", true);
+  const Encoding encoding = GetEncoding(env, argv[2]);
+  const bool fillCache = BooleanValue(env, argv[3], true);
 
   GetWorker* worker = new GetWorker(
     env, database, deferred, key, encoding, fillCache
