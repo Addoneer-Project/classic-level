@@ -6,31 +6,42 @@ const repeats = 200
 makeTest('closed iterator', async function (db, t) {
   // First test normal and proper usage: calling it.close() before db.close()
   const it = db.iterator()
-  t.same(await it.next(), ['one', '1'], 'correct entry')
+  t.same(await it.next(), ['a', '1'], 'correct entry')
   await it.close()
   return db.close()
 })
 
-makeTest('likely-ended iterator', async function (db, t) {
+makeTest('likely-closed iterator', async function (db, t) {
   // Test improper usage: not calling it.close() before db.close(). Cleanup of the
   // database will crash Node if not handled properly.
-  // TODO (v2): we need to call next() twice to populate the cache. Or use nextv() for
-  // this test. Also applies to tests below. And fix the test names (end vs close).
   const it = db.iterator()
-  t.same(await it.next(), ['one', '1'], 'correct entry')
+
+  // Two calls are needed to populate the cache
+  t.same(await it.next(), ['a', '1'], 'correct entry (1)')
+  t.same(await it.next(), ['b', '2'], 'correct entry (2)')
+
   return db.close()
 })
 
-makeTest('non-ended iterator', async function (db, t) {
+makeTest('non-closed iterator', async function (db, t) {
   // Same as the test above but with a highWaterMarkBytes of 0 so that we don't
   // preemptively fetch all records, to ensure that the iterator is still
   // active when we (attempt to) close the database.
   const it = db.iterator({ highWaterMarkBytes: 0 })
-  t.same(await it.next(), ['one', '1'], 'correct entry')
+
+  t.same(await it.next(), ['a', '1'], 'correct entry (1)')
+  t.same(await it.next(), ['b', '2'], 'correct entry (2)')
+
   return db.close()
 })
 
-makeTest('multiple likely-ended iterators', async function (db, t) {
+makeTest('non-closed iterator without caching', async function (db, t) {
+  const it = db.iterator({ highWaterMarkBytes: 0 })
+  t.same(await it.next(), ['a', '1'], 'correct entry (1)')
+  return db.close()
+})
+
+makeTest('multiple likely-closed iterators', async function (db, t) {
   // Same as the test above but repeated and with an extra iterator that is not
   // nexting, which means its CloseWorker will be executed almost immediately.
   for (let i = 0; i < repeats; i++) {

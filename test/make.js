@@ -9,9 +9,9 @@ function makeTest (name, testFn) {
 
     await db.open()
     await db.batch([
-      { type: 'put', key: 'one', value: '1' },
-      { type: 'put', key: 'two', value: '2' },
-      { type: 'put', key: 'three', value: '3' }
+      { type: 'put', key: 'a', value: '1' },
+      { type: 'put', key: 'b', value: '2' },
+      { type: 'put', key: 'c', value: '3' }
     ])
 
     return testFn(db, t)

@@ -17,7 +17,6 @@ test('chained batch without ref does not get GCed before write', async function 
 
   // The sync option makes the operation slower and thus more likely to
   // cause a segfault (if the batch were to be GC-ed before it is written).
-  // TODO (v2): does the promise somehow reference the batch?
   const promise = batch.write({ sync: true })
 
   // Remove reference
