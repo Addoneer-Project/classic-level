@@ -98,6 +98,11 @@ static std::map<std::string, LevelDbHandle> db_handles;
     }                                                                   \
   }
 
+/**
+ * Bit fields.
+ */
+#define STATE_ENDED 1
+
 /*********************************************************************
  * Helpers.
  ********************************************************************/
@@ -926,7 +931,8 @@ struct Iterator final : public BaseIterator {
             const bool fillCache,
             const Encoding keyEncoding,
             const Encoding valueEncoding,
-            const uint32_t highWaterMarkBytes)
+            const uint32_t highWaterMarkBytes,
+            unsigned char* state)
     : BaseIterator(database, reverse, lt, lte, gt, gte, limit, fillCache),
       id_(id),
       keys_(keys),
@@ -939,6 +945,7 @@ struct Iterator final : public BaseIterator {
       isClosing_(false),
       aborted_(false),
       ended_(false),
+      state_(state),
       ref_(NULL) {
   }
 
@@ -1001,6 +1008,7 @@ struct Iterator final : public BaseIterator {
   bool isClosing_;
   bool aborted_;
   bool ended_;
+  unsigned char* state_;
   std::vector<Entry> cache_;
 
 private:
@@ -1707,10 +1715,15 @@ static void FinalizeIterator (napi_env env, void* data, void* hint) {
  * Create an iterator.
  */
 NAPI_METHOD(iterator_init) {
-  NAPI_ARGV(2);
+  NAPI_ARGV(3);
   NAPI_DB_CONTEXT();
 
-  napi_value options = argv[1];
+  unsigned char* state = 0;
+  size_t stateLength;
+  NAPI_STATUS_THROWS(napi_get_typedarray_info(env, argv[1], NULL, &stateLength, (void**)&state, NULL, NULL));
+  assert(stateLength == 1);
+
+  napi_value options = argv[2];
   const bool reverse = BooleanProperty(env, options, "reverse", false);
   const bool keys = BooleanProperty(env, options, "keys", true);
   const bool values = BooleanProperty(env, options, "values", true);
@@ -1728,7 +1741,8 @@ NAPI_METHOD(iterator_init) {
   const uint32_t id = database->currentIteratorId_++;
   Iterator* iterator = new Iterator(database, id, reverse, keys,
                                     values, limit, lt, lte, gt, gte, fillCache,
-                                    keyEncoding, valueEncoding, highWaterMarkBytes);
+                                    keyEncoding, valueEncoding, highWaterMarkBytes,
+                                    state);
   napi_value result;
 
   NAPI_STATUS_THROWS(napi_create_external(env, iterator,
@@ -1860,6 +1874,11 @@ struct NextWorker final : public BaseWorker {
       napi_value element;
       iterator_->cache_[idx].ConvertByMode(env, Mode::entries, ke, ve, element);
       napi_set_element(env, jsArray, idx, element);
+    }
+
+    // TODO: use state_ internally too, replacing ended_?
+    if (iterator_->ended_) {
+      *iterator_->state_ |= STATE_ENDED;
     }
 
     napi_resolve_deferred(env, deferred, jsArray);
