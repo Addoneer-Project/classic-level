@@ -5,12 +5,13 @@
   "targets": [{
     "target_name": "leveldb",
     "variables": {
-      "ldbversion": "1.20"
+      "ldbversion": "1.17"
     },
     "type": "static_library",
     "standalone_static_library": 1,
     "dependencies": [
-      "../snappy/snappy.gyp:snappy"
+      "../snappy/snappy.gyp:snappy",
+      "../zlib/zlib.gyp:zlib"
     ],
     "direct_dependent_settings": {
       "include_dirs": [
@@ -40,12 +41,16 @@
         "defines": [
           "LEVELDB_PLATFORM_UV=1",
           "NOMINMAX=1",
-          "_HAS_EXCEPTIONS=0"
+          "_HAS_EXCEPTIONS=0",
+          "LEVELDB_PLATFORM_WINDOWS",
+          "DLLX=__declspec(dllexport)"
         ],
         "sources": [
-          "port-libuv/port_uv.cc",
-          "port-libuv/env_win.cc",
-          "port-libuv/win_logger.cc"
+          "leveldb-<(ldbversion)/port/port_win.cc",
+          "leveldb-<(ldbversion)/port/port_win.h",
+          "leveldb-<(ldbversion)/util/env_win.cc",
+          "leveldb-<(ldbversion)/util/win_logger.cc",
+          "leveldb-<(ldbversion)/util/win_logger.h"
         ],
         "msvs_settings": {
           "VCCLCompilerTool": {
@@ -62,7 +67,8 @@
           "leveldb-<(ldbversion)/util/env_posix.cc"
         ],
         "defines": [
-          "LEVELDB_PLATFORM_POSIX=1"
+          "LEVELDB_PLATFORM_POSIX=1",
+          "DLLX="
         ],
         "ccflags": [
           "-fno-builtin-memcmp",
@@ -75,11 +81,15 @@
         "cflags": [
           "-Wno-sign-compare",
           "-Wno-unused-but-set-variable"
+        ],
+        "defines": [
+          "DLLX="
         ]
       }],
       ["OS == 'linux'", {
         "defines": [
-          "OS_LINUX=1"
+          "OS_LINUX=1",
+          "DLLX="
         ],
         "libraries": [
           "-lpthread"
@@ -91,7 +101,8 @@
       ["OS == 'freebsd'", {
         "defines": [
           "OS_FREEBSD=1",
-          "_REENTRANT=1"
+          "_REENTRANT=1",
+          "DLLX="
         ],
         "libraries": [
           "-lpthread"
@@ -106,7 +117,8 @@
       ["OS == 'openbsd'", {
         "defines": [
           "OS_OPENBSD=1",
-          "_REENTRANT=1"
+          "_REENTRANT=1",
+          "DLLX="
         ],
         "libraries": [
           "-lpthread"
@@ -121,7 +133,8 @@
       ["OS == 'solaris'", {
         "defines": [
           "OS_SOLARIS=1",
-          "_REENTRANT=1"
+          "_REENTRANT=1",
+          "DLLX="
         ],
         "libraries": [
           "-lrt",
@@ -133,7 +146,8 @@
       }],
       ["OS == 'ios'", {
         "defines": [
-          "OS_IOS=1"
+          "OS_IOS=1",
+          "DLLX="
         ],
         "libraries": [],
         "ccflags": [],
@@ -147,7 +161,8 @@
       }],
       ["OS == 'mac'", {
         "defines": [
-          "OS_MACOSX=1"
+          "OS_MACOSX=1",
+          "DLLX="
         ],
         "libraries": [],
         "ccflags": [],
@@ -171,7 +186,8 @@
       ["OS == 'android'", {
         "defines": [
           "OS_ANDROID=1",
-          "_REENTRANT=1"
+          "_REENTRANT=1",
+          "DLLX="
         ],
         "libraries": [
           "-lpthread"
@@ -190,6 +206,9 @@
         ]
       }],
       ["target_arch == 'arm'", {
+        "defines": [
+          "DLLX="
+        ],
         "cflags": [
           "-mfloat-abi=hard"
         ]
@@ -224,6 +243,9 @@
       "leveldb-<(ldbversion)/db/version_set.h",
       "leveldb-<(ldbversion)/db/write_batch.cc",
       "leveldb-<(ldbversion)/db/write_batch_internal.h",
+      "leveldb-<(ldbversion)/db/zlib_compressor.cc",
+      "leveldb-<(ldbversion)/db/zstd_compressor.cc",
+      "leveldb-<(ldbversion)/db/c.cc",
       "leveldb-<(ldbversion)/helpers/memenv/memenv.cc",
       "leveldb-<(ldbversion)/helpers/memenv/memenv.h",
       "leveldb-<(ldbversion)/include/leveldb/cache.h",
@@ -239,6 +261,7 @@
       "leveldb-<(ldbversion)/include/leveldb/table.h",
       "leveldb-<(ldbversion)/include/leveldb/table_builder.h",
       "leveldb-<(ldbversion)/include/leveldb/write_batch.h",
+      "leveldb-<(ldbversion)/include/leveldb/c.h",
       "leveldb-<(ldbversion)/port/port.h",
       "leveldb-<(ldbversion)/port/port_posix_sse.cc",
       "leveldb-<(ldbversion)/table/block.cc",

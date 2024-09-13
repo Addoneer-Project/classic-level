@@ -4,10 +4,12 @@
 #include <node_api.h>
 #include <assert.h>
 
+#include <leveldb/c.h>
 #include <leveldb/db.h>
 #include <leveldb/write_batch.h>
 #include <leveldb/cache.h>
 #include <leveldb/filter_policy.h>
+#include <leveldb/zlib_compressor.h>
 
 #include <map>
 #include <vector>
@@ -1051,7 +1053,7 @@ struct OpenWorker final : public BaseWorker {
               const std::string& location,
               const bool createIfMissing,
               const bool errorIfExists,
-              const bool compression,
+              const uint32_t compression,
               const bool multithreading,
               const uint32_t writeBufferSize,
               const uint32_t blockSize,
@@ -1065,14 +1067,23 @@ struct OpenWorker final : public BaseWorker {
     options_.filter_policy = database->filterPolicy_;
     options_.create_if_missing = createIfMissing;
     options_.error_if_exists = errorIfExists;
-    options_.compression = compression
-      ? leveldb::kSnappyCompression
-      : leveldb::kNoCompression;
     options_.write_buffer_size = writeBufferSize;
     options_.block_size = blockSize;
     options_.max_open_files = maxOpenFiles;
     options_.block_restart_interval = blockRestartInterval;
     options_.max_file_size = maxFileSize;
+
+    switch(compression) {
+      case 0:
+        options_.compressors[0] = nullptr;
+        break;
+      case leveldb_zlib_compression:
+        options_.compressors[0] = new leveldb::ZlibCompressor();
+        break;
+      case leveldb_zlib_raw_compression:
+        options_.compressors[0] = new leveldb::ZlibCompressorRaw();
+        break;
+    }
   }
 
   ~OpenWorker () {}
@@ -1097,7 +1108,7 @@ NAPI_METHOD(db_open) {
   napi_value options = argv[2];
   const bool createIfMissing = BooleanProperty(env, options, "createIfMissing", true);
   const bool errorIfExists = BooleanProperty(env, options, "errorIfExists", false);
-  const bool compression = BooleanProperty(env, options, "compression", true);
+  const bool compression = Uint32Property(env, options, "compression", 2);
   const bool multithreading = BooleanProperty(env, options, "multithreading", false);
 
   const uint32_t cacheSize = Uint32Property(env, options, "cacheSize", 8 << 20);

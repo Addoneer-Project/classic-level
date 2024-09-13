@@ -7,7 +7,8 @@
     "conditions": [
       ["OS == 'win'", {
         "defines": [
-          "_HAS_EXCEPTIONS=0"
+          "_HAS_EXCEPTIONS=0",
+          "DLLX=__declspec(dllexport)"
         ],
         "msvs_settings": {
           "VCCLCompilerTool": {
@@ -19,10 +20,16 @@
         }
       }],
       ["OS == 'linux'", {
+        "defines": [
+          "DLLX="
+        ],
         "cflags": [],
         "cflags!": [ "-fno-tree-vrp"]
       }],
       ["OS == 'mac'", {
+        "defines": [
+          "DLLX="
+        ],
         "cflags+": ["-fvisibility=hidden"],
         "xcode_settings": {
           # -fvisibility=hidden
@@ -44,6 +51,9 @@
         }
       }],
       ["OS == 'android'", {
+        "defines": [
+          "DLLX="
+        ],
         "cflags": [ "-fPIC" ],
         "ldflags": [ "-fPIC" ],
         "cflags!": [
@@ -54,6 +64,9 @@
         "ldflags!": [ "-fPIE" ]
       }],
       ["target_arch == 'arm'", {
+        "defines": [
+          "DLLX="
+        ],
         "cflags": [ "-mfloat-abi=hard" ]
       }]
     ],
