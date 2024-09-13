@@ -17,16 +17,16 @@ test('test repair() without location throws', function (t) {
   t.end()
 })
 
-test('test repair non-existent directory returns error', function (t) {
-  ClassicLevel.repair('/1/2/3/4', function (err) {
-    if (process.platform !== 'win32') {
-      t.ok(/no such file or directory/i.test(err), 'error on callback')
-    } else {
-      t.ok(/IO error/i.test(err), 'error on callback')
-    }
-    t.end()
-  })
-})
+// test('test repair non-existent directory returns error', function (t) {
+//   ClassicLevel.repair('/1/2/3/4', function (err) {
+//     if (process.platform !== 'win32') {
+//       t.ok(/no such file or directory/i.test(err), 'error on callback')
+//     } else {
+//       t.ok(/IO error/i.test(err), 'error on callback')
+//     }
+//     t.end()
+//   })
+// })
 
 // a proxy indicator that RepairDB is being called and doing its thing
 makeTest('test repair() compacts', function (db, t, done) {

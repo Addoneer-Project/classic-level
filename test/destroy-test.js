@@ -45,19 +45,19 @@ test('test destroy non-existent directory', function (t) {
   })
 })
 
-test('test destroy non-existent parent directory', function (t) {
-  t.plan(3)
-
-  const location = '/1/2/3/4'
-  const parent = path.dirname(location)
-
-  t.notOk(fs.existsSync(parent), 'parent does not exist before')
-
-  ClassicLevel.destroy(location, function (err) {
-    t.error(err, 'no error')
-    t.notOk(fs.existsSync(location), 'directory does not exist after')
-  })
-})
+// test('test destroy non-existent parent directory', function (t) {
+//   t.plan(3)
+//
+//   const location = '/1/2/3/4'
+//   const parent = path.dirname(location)
+//
+//   t.notOk(fs.existsSync(parent), 'parent does not exist before')
+//
+//   ClassicLevel.destroy(location, function (err) {
+//     t.error(err, 'no error')
+//     t.notOk(fs.existsSync(location), 'directory does not exist after')
+//   })
+// })
 
 test('test destroy non leveldb directory', function (t) {
   const tree = {

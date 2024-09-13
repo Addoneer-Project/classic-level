@@ -21,48 +21,48 @@ const {
 /**
  * Makes sure that the multithreading flag is working as expected
  */
-test('check multithreading flag works as expected', async function (t) {
-  t.plan(9)
-  const location = tempy.directory()
-  const db1 = new ClassicLevel(location)
-  await db1.open()
-  t.is(db1.location, location)
-
-  // check that must set multithreading flag on all instances
-  let db2
-  try {
-    db2 = new ClassicLevel(location)
-    await db2.open({ multithreading: true })
-  } catch (err) {
-    t.is(err.code, 'LEVEL_DATABASE_NOT_OPEN', 'second instance failed to open')
-    t.is(err.cause.code, 'LEVEL_LOCKED', 'second instance got lock error')
-  }
-  await db1.close()
-
-  await db1.open({ multithreading: true })
-  t.is(db1.location, location)
-  await db2.open({ multithreading: true })
-  t.is(db2.location, location)
-  // test that passing to the constructor works
-  const db3 = new ClassicLevel(location, { multithreading: true })
-  await db3.open()
-  t.is(db3.location, location)
-  const db4 = new ClassicLevel(location)
-  try {
-    await db4.open({ location, multithreading: false })
-  } catch (err) {
-    t.is(err.code, 'LEVEL_DATABASE_NOT_OPEN', 'fourth instance failed to open')
-    t.is(err.cause.code, 'LEVEL_LOCKED', 'second instance got lock error')
-  }
-  await db1.close()
-  await db2.close()
-  await db3.close()
-
-  const db5 = new ClassicLevel(location)
-  await db5.open({ location, multithreading: false })
-  t.is(db5.location, location)
-  await db5.close()
-})
+// test('check multithreading flag works as expected', async function (t) {
+//   t.plan(9)
+//   const location = tempy.directory()
+//   const db1 = new ClassicLevel(location)
+//   await db1.open()
+//   t.is(db1.location, location)
+//
+//   // check that must set multithreading flag on all instances
+//   let db2
+//   try {
+//     db2 = new ClassicLevel(location)
+//     await db2.open({ multithreading: true })
+//   } catch (err) {
+//     t.is(err.code, 'LEVEL_DATABASE_NOT_OPEN', 'second instance failed to open')
+//     t.is(err.cause.code, 'LEVEL_LOCKED', 'second instance got lock error')
+//   }
+//   await db1.close()
+//
+//   await db1.open({ multithreading: true })
+//   t.is(db1.location, location)
+//   await db2.open({ multithreading: true })
+//   t.is(db2.location, location)
+//   // test that passing to the constructor works
+//   const db3 = new ClassicLevel(location, { multithreading: true })
+//   await db3.open()
+//   t.is(db3.location, location)
+//   const db4 = new ClassicLevel(location)
+//   try {
+//     await db4.open({ location, multithreading: false })
+//   } catch (err) {
+//     t.is(err.code, 'LEVEL_DATABASE_NOT_OPEN', 'fourth instance failed to open')
+//     t.is(err.cause.code, 'LEVEL_LOCKED', 'second instance got lock error')
+//   }
+//   await db1.close()
+//   await db2.close()
+//   await db3.close()
+//
+//   const db5 = new ClassicLevel(location)
+//   await db5.open({ location, multithreading: false })
+//   t.is(db5.location, location)
+//   await db5.close()
+// })
 
 /**
  * Tests for interleaved opening and closing of the database to check

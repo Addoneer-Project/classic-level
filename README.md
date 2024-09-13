@@ -1,8 +1,8 @@
-# classic-level
+# classic-level-mcpe
 
 **An [`abstract-level`](https://github.com/Level/abstract-level) database backed by [LevelDB](https://github.com/google/leveldb) ported to MCPE (Bedrock).** The successor to [`leveldown`](https://github.com/Level/leveldown) with builtin encodings, sublevels, events, promises and support of Uint8Array. If you are upgrading please see [`UPGRADING.md`](UPGRADING.md).
 
-**This is a fork of [Level/classic-level](https://github.com/Level/classic-level)** with the following changes:
+**IMPORTANT: This is a fork of [Level/classic-level](https://github.com/Level/classic-level)** with the following changes:
 - Replaced the original 1.20 leveldb with the 1.17 version from MCPE;
 - Added support for Zlib compression;
 - Deleted the original Snappy compression.
