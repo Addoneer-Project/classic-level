@@ -202,7 +202,6 @@ The optional `options` object may contain:
 - `errorIfExists` (boolean, default: `false`): If `true` and the database already exists, opening will fail.
 - `passive` (boolean, default: `false`): Wait for, but do not initiate, opening of the database.
 - `multithreading` (boolean, default: `false`): Allow multiple threads to access the database. This is only relevant when using [worker threads](https://nodejs.org/api/worker_threads.html)
-- `compression` (int, default: `2`): 0 for reading as no compression, 2 for zlib, 4 for flate.
 
 For advanced performance tuning, the `options` object may also contain the following. Modify these options only if you can prove actual benefit for your particular application.
 
