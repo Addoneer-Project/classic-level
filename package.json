@@ -1,7 +1,7 @@
 {
-  "name": "classic-level",
+  "name": "classic-level-mcpe",
   "version": "1.4.1",
-  "description": "An abstract-level database backed by LevelDB",
+  "description": "An abstract-level database backed by LevelDB, ported to MCPE (Bedrock).",
   "license": "MIT",
   "main": "index.js",
   "types": "./index.d.ts",

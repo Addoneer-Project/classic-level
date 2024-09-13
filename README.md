@@ -1,6 +1,6 @@
 # classic-level
 
-**An [`abstract-level`](https://github.com/Level/abstract-level) database backed by [LevelDB](https://github.com/google/leveldb).** The successor to [`leveldown`](https://github.com/Level/leveldown) with builtin encodings, sublevels, events, promises and support of Uint8Array. If you are upgrading please see [`UPGRADING.md`](UPGRADING.md).
+**An [`abstract-level`](https://github.com/Level/abstract-level) database backed by [LevelDB](https://github.com/google/leveldb) ported to MCPE (Bedrock).** The successor to [`leveldown`](https://github.com/Level/leveldown) with builtin encodings, sublevels, events, promises and support of Uint8Array. If you are upgrading please see [`UPGRADING.md`](UPGRADING.md).
 
 > :pushpin: Which module should I use? What is `abstract-level`? Head over to the [FAQ](https://github.com/Level/community#faq).
 
@@ -202,6 +202,7 @@ The optional `options` object may contain:
 - `errorIfExists` (boolean, default: `false`): If `true` and the database already exists, opening will fail.
 - `passive` (boolean, default: `false`): Wait for, but do not initiate, opening of the database.
 - `multithreading` (boolean, default: `false`): Allow multiple threads to access the database. This is only relevant when using [worker threads](https://nodejs.org/api/worker_threads.html)
+- `compression` (int, default: `2`): 0 for reading as no compression, 2 for zlib, 4 for flate.
 
 For advanced performance tuning, the `options` object may also contain the following. Modify these options only if you can prove actual benefit for your particular application.
 
